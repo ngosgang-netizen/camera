@@ -189,6 +189,21 @@
       <div class="switch"><span>Khung đỏ quanh vùng chuyển động</span><input type="checkbox" id="boxOn" checked></div>
       <h3 style="margin-top:18px">Cài đặt</h3>
       <div class="field"><label>Webcam</label><select id="camSel"></select></div>
+      <div class="field"><label>Múi giờ hiển thị trên hình</label>
+        <select id="tzSel">
+          <option value="">Theo máy tính</option>
+          <option value="Asia/Ho_Chi_Minh">Việt Nam (UTC+7)</option>
+          <option value="Australia/Melbourne">Melbourne / Sydney</option>
+          <option value="Australia/Brisbane">Brisbane</option>
+          <option value="Australia/Adelaide">Adelaide</option>
+          <option value="Australia/Perth">Perth</option>
+          <option value="Asia/Tokyo">Nhật / Hàn (UTC+9)</option>
+          <option value="Europe/London">London</option>
+          <option value="America/Los_Angeles">Los Angeles</option>
+          <option value="America/New_York">New York</option>
+          <option value="UTC">UTC</option>
+        </select>
+        <div class="hint" id="clockInfo" style="margin-top:8px">Đang kiểm tra giờ…</div></div>
       <div class="field"><label>Giữ bản ghi trong</label>
         <select id="keepSel"><option value="6">6 giờ</option><option value="12">12 giờ</option><option value="24">24 giờ</option><option value="72">3 ngày</option><option value="168">7 ngày</option></select></div>
       <p class="hint">Giữ tab này mở (không thu nhỏ) và tắt chế độ ngủ của máy. Bản ghi lưu ngay trong trình duyệt máy này.</p>
@@ -283,9 +298,27 @@ document.querySelectorAll("i[data-i]").forEach(el => el.outerHTML = icon(el.data
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const pad2 = n => String(n).padStart(2, "0");
-const fmtTime = t => { const d = new Date(t); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
-const fmtDate = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`; };
-const log = (el, msg) => $(el).insertAdjacentHTML("afterbegin", `<div>${fmtTime(Date.now())}  ${msg}</div>`);
+/* Giờ: lấy giờ chuẩn từ máy chủ web (sửa khi đồng hồ máy bị lệch) và hiển thị theo múi giờ đã chọn */
+let clockOffset = 0, TZ = "", tzFmt = null;
+const now = () => Date.now() + clockOffset;
+function setTZ(tz) { TZ = tz || ""; try { tzFmt = TZ ? new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }) : null; } catch { TZ = ""; tzFmt = null; } }
+function parts(t) {
+  if (!tzFmt) { const d = new Date(t); return { Y: d.getFullYear(), M: d.getMonth() + 1, D: d.getDate(), h: d.getHours(), m: d.getMinutes(), s: d.getSeconds() }; }
+  const o = {}; tzFmt.formatToParts(t).forEach(p => o[p.type] = +p.value);
+  return { Y: o.year, M: o.month, D: o.day, h: o.hour % 24, m: o.minute, s: o.second };
+}
+const fmtTime = t => { const p = parts(t); return `${pad2(p.h)}:${pad2(p.m)}:${pad2(p.s)}`; };
+const fmtDate = t => { const p = parts(t); return `${pad2(p.D)}/${pad2(p.M)}/${p.Y}`; };
+async function syncClock() {
+  try {
+    const t0 = Date.now(), r = await fetch(location.href.split("#")[0], { method: "HEAD", cache: "no-store" }), t1 = Date.now();
+    const srv = Date.parse(r.headers.get("date")); if (!srv) return null;
+    const off = srv + 500 - (t0 + t1) / 2;          // header Date chỉ chính xác tới giây
+    clockOffset = Math.abs(off) > 2000 ? off : 0;
+    return clockOffset;
+  } catch { return null; }
+}
+const log = (el, msg) => $(el).insertAdjacentHTML("afterbegin", `<div>${fmtTime(now())}  ${msg}</div>`);
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} }, del(k) { try { localStorage.removeItem(k); } catch {} } };
 const show = id => ["home", "cam", "view"].forEach(s => $(s).classList.toggle("hide", s !== id));
 function changeRole() { store.del("cam_role"); location.href = location.pathname; }
@@ -317,6 +350,14 @@ async function startCamera() {
   const src = $("src"), out = $("out"), ctx = out.getContext("2d");
   const setState = (txt, cls) => { $("camState").textContent = txt; $("camDot").className = "dot " + (cls || ""); };
 
+  setTZ(store.get("cam_tz") || "");
+  $("tzSel").value = TZ;
+  const showClock = () => {
+    const zone = TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "máy tính";
+    $("clockInfo").textContent = `Bây giờ: ${fmtTime(now())} ${fmtDate(now())} · ${zone}` + (clockOffset ? ` · đã chỉnh lệch ${Math.round(clockOffset / 1000)} giây theo giờ internet` : "");
+  };
+  $("tzSel").onchange = () => { setTZ($("tzSel").value); store.set("cam_tz", TZ); showClock(); conns.forEach(c => c.data.open && sendList(c.data)); };
+  syncClock().then(showClock); setInterval(() => syncClock().then(showClock), 30 * 60e3); setInterval(showClock, 1000);
   $("keepSel").value = store.get("cam_keep") || "24";
   $("keepSel").onchange = () => { store.set("cam_keep", $("keepSel").value); prune(); };
   let sens = +(store.get("cam_sens") || 3);
@@ -359,14 +400,14 @@ async function startCamera() {
       ctx.strokeStyle = "#ff4d5e"; ctx.lineWidth = Math.max(2, w / 400);
       ctx.strokeRect(hotBox[0] * sx, hotBox[1] * sy, (hotBox[2] - hotBox[0]) * sx, (hotBox[3] - hotBox[1]) * sy);
     }
-    const fs = Math.max(14, Math.round(h / 26)), text = `${fmtDate(Date.now())}  ${fmtTime(Date.now())}`;
+    const t = now(), fs = Math.max(14, Math.round(h / 26)), text = `${fmtDate(t)}  ${fmtTime(t)}`;
     ctx.font = `600 ${fs}px "JetBrains Mono",ui-monospace,Consolas,monospace`;
     const tw = ctx.measureText(text).width;
     ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.fillRect(fs * .5, fs * .5, tw + fs, fs * 1.6);
     ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(text, fs, fs * 1.3);
     if (motion) { ctx.fillStyle = "#ff4d5e"; ctx.beginPath(); ctx.arc(w - fs * 1.2, fs * 1.3, fs * .4, 0, 7); ctx.fill(); }
     ready = true;
-    const m = Math.floor(Date.now() / 60000);
+    const m = Math.floor(now() / 60000);
     if (m !== curMinute) { curMinute = m; rotate(); }
   });
 
@@ -376,13 +417,13 @@ async function startCamera() {
   function rotate() {
     if (!ready) return;
     if (rec && rec.state !== "inactive") rec.stop();
-    const chunks = [], start = Date.now(), r = new MediaRecorder(outStream, { ...(recType ? { mimeType: recType } : {}), videoBitsPerSecond: 700000 });
+    const chunks = [], start = now(), r = new MediaRecorder(outStream, { ...(recType ? { mimeType: recType } : {}), videoBitsPerSecond: 700000 });
     r._motion = motion;
     r.ondataavailable = e => e.data.size && chunks.push(e.data);
     r.onstop = async () => {
       const type = r.mimeType || recType || "video/webm", blob = new Blob(chunks, { type });
       if (blob.size < 2000) return;
-      try { await tx(db, ["meta", "blob"], "readwrite", t => { t.objectStore("meta").put({ start, end: Date.now(), size: blob.size, motion: r._motion, type }); t.objectStore("blob").put(blob, start); }); }
+      try { await tx(db, ["meta", "blob"], "readwrite", t => { t.objectStore("meta").put({ start, end: now(), size: blob.size, motion: r._motion, type }); t.objectStore("blob").put(blob, start); }); }
       catch (e) { log("camLog", "Không lưu được đoạn ghi: " + e.message); }
       prune();
     };
@@ -393,7 +434,7 @@ async function startCamera() {
   async function prune() {
     const keep = (+$("keepSel").value || 24) * 3600e3;
     const keys = await tx(db, ["meta"], "readonly", t => t.objectStore("meta").getAllKeys());
-    let del = keys.filter(k => k < Date.now() - keep);
+    let del = keys.filter(k => k < now() - keep);
     try { const e = await navigator.storage.estimate(); if (e.usage / e.quota > 0.85) del = del.concat(keys.slice(0, Math.ceil(keys.length * 0.1))); } catch {}
     if (del.length) await tx(db, ["meta", "blob"], "readwrite", t => del.forEach(k => { t.objectStore("meta").delete(k); t.objectStore("blob").delete(k); }));
     const mins = keys.length - new Set(del).size;
@@ -406,7 +447,7 @@ async function startCamera() {
   const updateViewers = () => $("viewers").textContent = conns.size;
   async function sendList(data) {
     const metas = await tx(db, ["meta"], "readonly", t => t.objectStore("meta").getAll());
-    data.send({ t: "list", segs: metas.map(m => [m.start, m.end, m.motion ? 1 : 0]) });
+    data.send({ t: "list", tz: TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "", segs: metas.map(m => [m.start, m.end, m.motion ? 1 : 0]) });
   }
   async function sendSeg(data, start) {
     const [meta, blob] = await Promise.all([
@@ -488,6 +529,7 @@ async function startCamera() {
    ====================================================================== */
 function startViewer() {
   show("view");
+  syncClock();
   const view = $("view"), vid = $("v");
   const cam = { live: false, motion: false, stream: null, data: null, list: [], missing: false, wait: "Đang kết nối…" };
   let mode = "live", replay = null, peer, audioCtx;
@@ -550,7 +592,7 @@ function startViewer() {
 
   function onData(m) {
     if (!m) return;
-    if (m.t === "list") { cam.list = m.segs.sort((a, b) => a[0] - b[0]); if (!$("panel").classList.contains("hide")) drawPanel(); return; }
+    if (m.t === "list") { if (m.tz !== undefined) setTZ(m.tz); cam.list = m.segs.sort((a, b) => a[0] - b[0]); if (!$("panel").classList.contains("hide")) drawPanel(); return; }
     if (m.t === "chunk") {
       const p = pending.get(m.start); if (!p) return;
       if (!p.parts[m.i]) { p.parts[m.i] = m.buf; p.got++; }
@@ -651,9 +693,9 @@ function startViewer() {
     $("pmsg").textContent = "";
     const days = [...new Set(segs.map(s => fmtDate(s[0])))];
     if (!days.includes(selDay)) selDay = days[days.length - 1];
-    const byHour = {}; segs.filter(s => fmtDate(s[0]) === selDay).forEach(s => (byHour[new Date(s[0]).getHours()] ??= []).push(s));
+    const byHour = {}; segs.filter(s => fmtDate(s[0]) === selDay).forEach(s => (byHour[parts(s[0]).h] ??= []).push(s));
     if (!(selHour in byHour)) selHour = Math.max(...Object.keys(byHour).map(Number));
-    const today = fmtDate(Date.now()), yest = fmtDate(Date.now() - 864e5);
+    const today = fmtDate(now()), yest = fmtDate(now() - 864e5);
     days.forEach(d => { const b = document.createElement("button"); b.textContent = d === today ? "Hôm nay" : d === yest ? "Hôm qua" : d.slice(0, 5); b.className = d === selDay ? "on" : ""; b.onclick = () => { selDay = d; selHour = null; drawPanel(); }; $("days").appendChild(b); });
     for (let h = 0; h < 24; h++) {
       const b = document.createElement("button"), has = byHour[h];
@@ -662,7 +704,7 @@ function startViewer() {
       b.onclick = () => { selHour = h; drawPanel(); };
       $("hours").appendChild(b);
     }
-    const byMin = {}; (byHour[selHour] || []).forEach(s => { byMin[new Date(s[0]).getMinutes()] = s; });
+    const byMin = {}; (byHour[selHour] || []).forEach(s => { byMin[parts(s[0]).m] = s; });
     for (let m = 0; m < 60; m++) {
       const b = document.createElement("button"), s = byMin[m];
       b.textContent = pad2(m);
