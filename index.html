@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#07080c">
+<title>Camera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root{
+    --bg:#07080c;--panel:rgba(20,23,31,.72);--solid:#12151c;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+    --txt:#eef0f5;--mut:#8b91a0;--acc:#4f8cff;--acc2:#8b5cf6;--ok:#2fd27a;--bad:#ff4d5e;--warn:#ffb020;
+    --r:18px;--font:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--font);-webkit-font-smoothing:antialiased}
+  .hide{display:none!important}
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+  svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .mut{color:var(--mut)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;flex:none;box-shadow:0 0 0 3px rgba(47,210,122,.18)}
+  .dot.off{background:#5b6070;box-shadow:none}
+  .dot.rec{background:var(--bad);box-shadow:0 0 0 3px rgba(255,77,94,.2);animation:pulse 1.6s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+
+  /* ---------------- TRANG CHỦ ---------------- */
+  #home{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 20px;
+    background:radial-gradient(900px 500px at 15% -10%,rgba(79,140,255,.22),transparent 60%),radial-gradient(700px 500px at 110% 110%,rgba(139,92,246,.18),transparent 60%),var(--bg)}
+  .hero{width:100%;max-width:560px}
+  .logo{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;margin-bottom:22px;
+    background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 10px 30px rgba(79,140,255,.35)}
+  .logo svg.i{width:28px;height:28px;color:#fff}
+  .hero h1{font-size:34px;line-height:1.15;margin:0 0 10px;font-weight:700;letter-spacing:-.02em}
+  .hero p.lead{color:var(--mut);margin:0 0 30px;font-size:16px}
+  .choices{display:grid;gap:14px}
+  .choice{display:flex;gap:16px;align-items:center;text-align:left;width:100%;padding:20px;border-radius:var(--r);
+    background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px);transition:transform .15s,border-color .15s,background .15s}
+  .choice:hover{transform:translateY(-2px);border-color:var(--line2);background:rgba(28,32,43,.8)}
+  .choice .ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:rgba(79,140,255,.14);color:var(--acc)}
+  .choice:nth-child(2) .ic{background:rgba(139,92,246,.15);color:#a98bff}
+  .choice b{display:block;font-size:17px;font-weight:600;margin-bottom:3px;color:var(--txt)}
+  .choice > span > span{color:var(--mut);font-size:14px}
+  .choice .arr{margin-left:auto;color:var(--mut)}
+  .note{margin-top:22px;font-size:13px;color:var(--mut);display:flex;gap:8px;align-items:flex-start}
+
+  /* ---------------- MÁY CAMERA ---------------- */
+  #cam{max-width:1120px;margin:0 auto;padding:20px 20px 40px}
+  .head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .head h2{margin:0;font-size:22px;font-weight:700}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:13px;font-weight:500}
+  .ghost{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:14px;font-weight:500}
+  .ghost:hover{border-color:var(--line2)}
+  .layout{display:grid;gap:18px;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr)}
+  @media(max-width:820px){.layout{grid-template-columns:1fr}}
+  .preview{position:relative;border-radius:var(--r);overflow:hidden;background:#000;border:1px solid var(--line);transition:box-shadow .2s,border-color .2s}
+  .preview.moving{border-color:rgba(255,77,94,.7);box-shadow:0 0 0 4px rgba(255,77,94,.18)}
+  #out{width:100%;display:block}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .stat small{display:block;color:var(--mut);font-size:12px;margin-bottom:6px}
+  .stat b{font-size:18px;font-weight:600}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;backdrop-filter:blur(12px)}
+  .card h3{margin:0 0 14px;font-size:15px;font-weight:600}
+  .field{margin-bottom:16px} .field label{display:block;font-size:13px;color:var(--mut);margin-bottom:8px}
+  select{width:100%;background:var(--solid);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;font-size:14px}
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);background:var(--solid);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+  .seg button{padding:9px 0;border-radius:9px;font-size:13px;color:var(--mut);font-weight:500}
+  .seg button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
+  .meter{height:8px;border-radius:99px;background:var(--solid);overflow:hidden;border:1px solid var(--line)}
+  .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--warn),var(--bad));transition:width .2s}
+  .switch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+  .switch input{appearance:none;width:42px;height:24px;border-radius:99px;background:#2b303c;position:relative;cursor:pointer;transition:background .2s;flex:none}
+  .switch input::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s}
+  .switch input:checked{background:var(--acc)} .switch input:checked::after{left:21px}
+  .hint{font-size:13px;color:var(--mut);line-height:1.5;margin:12px 0 0}
+  .log{margin-top:16px;font-size:12.5px;color:var(--mut);max-height:150px;overflow:auto;font-family:var(--mono)}
+  .log div{padding:3px 0}
+
+  /* ---------------- XEM ---------------- */
+  #view{position:fixed;inset:0;background:#000;overflow:hidden;user-select:none}
+  #v{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+  #view.fill #v{object-fit:cover}
+  .ui{transition:opacity .3s,transform .3s}
+  #view.calm .ui{opacity:0;pointer-events:none}
+  #view.calm .top.ui{transform:translateY(-10px)} #view.calm .dock-wrap.ui{transform:translateY(10px)}
+  .glass{background:rgba(14,16,22,.62);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4)}
+  .top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 30px max(14px,env(safe-area-inset-left));background:linear-gradient(rgba(0,0,0,.55),transparent)}
+  .round{width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+  .status{display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:999px;font-size:13px;font-weight:600;letter-spacing:.02em}
+  .status.alert{background:rgba(255,77,94,.85);border-color:transparent}
+  .dock-wrap{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;gap:10px;
+    padding:40px max(14px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));background:linear-gradient(transparent,rgba(0,0,0,.6))}
+  .dock{display:flex;gap:4px;padding:6px;border-radius:20px}
+  .dbtn{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:62px;padding:9px 10px;border-radius:14px;font-size:11.5px;font-weight:500;color:#dfe3ea}
+  .dbtn:hover{background:rgba(255,255,255,.08)} .dbtn.on{background:rgba(255,255,255,.14)}
+  @media(max-width:420px){.dbtn{min-width:52px;font-size:10.5px}}
+  .replay{width:min(640px,100%);border-radius:20px;padding:14px 16px}
+  .rhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .rtime{font-family:var(--mono);font-size:15px}
+  .rtag{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--warn)}
+  #seek{width:100%;margin:6px 0 10px;accent-color:var(--acc);height:4px}
+  .rctl{display:flex;align-items:center;gap:6px}
+  .rbtn{width:42px;height:42px;border-radius:12px;display:grid;place-items:center} .rbtn:hover{background:rgba(255,255,255,.08)}
+  .rbtn.big{width:50px;height:50px;border-radius:50%;background:#fff;color:#000} .rbtn.big:hover{background:#e8e8e8}
+  .speed{font-family:var(--mono);font-size:13px;padding:0 10px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.15)}
+  .live-btn{margin-left:auto;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:var(--bad);color:#fff;font-weight:600;font-size:14px}
+  #center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:min(420px,88%)}
+  #center:empty{display:none}
+  .empty{border-radius:22px;padding:26px}
+  .empty .ic{width:56px;height:56px;border-radius:16px;margin:0 auto 14px;display:grid;place-items:center;background:rgba(255,255,255,.07)}
+  .empty b{display:block;font-size:17px;margin-bottom:6px} .empty p{margin:0 0 18px;color:var(--mut);font-size:14px;line-height:1.5}
+  .cta{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-weight:600;font-size:14px}
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#fff;animation:spin .8s linear infinite;margin:0 auto 12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loadtxt{color:#cfd3dc;font-size:14px}
+
+  .sheet{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(720px,100%);max-height:80%;overflow:auto;border-radius:24px 24px 0 0;
+    padding:10px max(18px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));background:rgba(16,18,25,.92);
+    border:1px solid rgba(255,255,255,.1);border-bottom:0;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);animation:up .25s ease}
+  @keyframes up{from{transform:translate(-50%,30px);opacity:0}}
+  .grab{width:40px;height:5px;border-radius:99px;background:rgba(255,255,255,.2);margin:0 auto 12px}
+  .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .sh h3{margin:0;font-size:18px;font-weight:700}
+  .lbl{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:16px 0 8px}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none} .chips::-webkit-scrollbar{display:none}
+  .chips button{flex:none;position:relative;padding:9px 15px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:14px;font-weight:500}
+  .chips button.on{background:#fff;color:#000;border-color:#fff}
+  .chips button:disabled{opacity:.25;cursor:default}
+  .chips button.mv::after{content:"";position:absolute;top:5px;right:7px;width:6px;height:6px;border-radius:50%;background:var(--bad)}
+  .mins{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
+  .mins button{padding:10px 0;border-radius:8px;font-size:12px;font-family:var(--mono);background:rgba(255,255,255,.04);color:#4a4f5c}
+  .mins button.rec{background:rgba(79,140,255,.22);color:#cfe0ff} .mins button.rec:hover{background:rgba(79,140,255,.4)}
+  .mins button.mv{background:rgba(255,77,94,.3);color:#ffe0e3} .mins button.mv:hover{background:rgba(255,77,94,.5)}
+  .mins button.now{outline:2px solid #fff;outline-offset:1px}
+  .mins button:disabled{cursor:default}
+  .legend{display:flex;gap:16px;margin-top:14px;font-size:12.5px;color:var(--mut)} .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+  #toast{position:absolute;top:80px;left:50%;transform:translateX(-50%);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none}
+</style>
+</head>
+<body>
+
+<!-- ================= TRANG CHỦ ================= -->
+<section id="home">
+  <div class="hero">
+    <div class="logo"><i data-i="video"></i></div>
+    <h1>Camera tại nhà</h1>
+    <p class="lead">Xem webcam trực tiếp từ điện thoại, tự ghi lại và báo khi có chuyển động.</p>
+    <div class="choices">
+      <button class="choice" data-role="cam"><span class="ic"><i data-i="video"></i></span><span><b>Dùng làm camera</b><span>Máy có webcam: phát hình và ghi liên tục.</span></span><span class="arr"><i data-i="chev"></i></span></button>
+      <button class="choice" data-role="view"><span class="ic"><i data-i="phone"></i></span><span><b>Xem camera</b><span>Điện thoại hoặc máy khác: xem trực tiếp và xem lại.</span></span><span class="arr"><i data-i="chev"></i></span></button>
+    </div>
+    <div class="note" id="homeNote"><i data-i="lock"></i><span>Không cần mật khẩu. Ai có link trang này đều xem được, vì vậy đừng chia sẻ link.</span></div>
+  </div>
+</section>
+
+<!-- ================= MÁY CAMERA ================= -->
+<section id="cam" class="hide">
+  <div class="head">
+    <button class="ghost" onclick="changeRole()"><i data-i="back"></i>Trang chính</button>
+    <h2>Camera</h2>
+    <span class="pill" id="camPill"><span class="dot off" id="camDot"></span><span id="camState">Đang khởi động…</span></span>
+  </div>
+  <div class="layout">
+    <div>
+      <div class="preview" id="preview"><canvas id="out" width="1280" height="720"></canvas></div>
+      <video id="src" autoplay muted playsinline class="hide"></video>
+      <div class="stats">
+        <div class="stat"><small>Người đang xem</small><b id="viewers">0</b></div>
+        <div class="stat"><small>Ghi hình</small><b id="recState" class="mut">Chưa</b></div>
+        <div class="stat"><small>Đã lưu</small><b id="storeInfo">…</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Phát hiện chuyển động</h3>
+      <div class="field">
+        <label>Mức chuyển động hiện tại</label>
+        <div class="meter"><i id="meter"></i></div>
+      </div>
+      <div class="field">
+        <label>Độ nhạy</label>
+        <div class="seg" id="sens"><button data-s="1">Thấp</button><button data-s="2">Vừa</button><button data-s="3">Cao</button><button data-s="4">Rất cao</button></div>
+      </div>
+      <div class="switch"><span>Báo chuyển động</span><input type="checkbox" id="motionOn" checked></div>
+      <div class="switch"><span>Khung đỏ quanh vùng chuyển động</span><input type="checkbox" id="boxOn" checked></div>
+      <h3 style="margin-top:18px">Cài đặt</h3>
+      <div class="field"><label>Webcam</label><select id="camSel"></select></div>
+      <div class="field"><label>Giữ bản ghi trong</label>
+        <select id="keepSel"><option value="6">6 giờ</option><option value="12">12 giờ</option><option value="24">24 giờ</option><option value="72">3 ngày</option><option value="168">7 ngày</option></select></div>
+      <p class="hint">Giữ tab này mở (không thu nhỏ) và tắt chế độ ngủ của máy. Bản ghi lưu ngay trong trình duyệt máy này.</p>
+    </div>
+  </div>
+  <div class="log" id="camLog"></div>
+</section>
+
+<!-- ================= XEM ================= -->
+<section id="view" class="hide">
+  <video id="v" autoplay playsinline muted></video>
+  <div id="center"></div>
+
+  <div class="top ui">
+    <button class="round glass" onclick="changeRole()" title="Trang chính"><i data-i="back"></i></button>
+    <div class="status glass" id="status"><span class="dot off"></span>Đang kết nối…</div>
+  </div>
+
+  <div class="dock-wrap ui">
+    <div class="replay glass hide" id="replayBar">
+      <div class="rhead"><span class="rtag">XEM LẠI</span><span class="rtime" id="rTime">--:--:--</span></div>
+      <input type="range" id="seek" min="0" max="60" step="0.1" value="0">
+      <div class="rctl">
+        <button class="rbtn" id="prevSeg" title="Phút trước"><i data-i="prev"></i></button>
+        <button class="rbtn big" id="playPause" title="Phát / dừng"><i data-i="pause"></i></button>
+        <button class="rbtn" id="nextSeg" title="Phút sau"><i data-i="next"></i></button>
+        <button class="speed" id="speed">1×</button>
+        <button class="rbtn" id="dlSeg" title="Tải đoạn này"><i data-i="download"></i></button>
+        <button class="live-btn" id="goLive"><span class="dot" style="background:#fff;box-shadow:none"></span>Trực tiếp</button>
+      </div>
+    </div>
+    <div class="dock glass">
+      <button class="dbtn" id="openPanel"><i data-i="history"></i>Xem lại</button>
+      <button class="dbtn" id="snap"><i data-i="camera"></i>Chụp</button>
+      <button class="dbtn" id="fit"><i data-i="fit"></i>Lấp đầy</button>
+      <button class="dbtn" id="fs"><i data-i="max"></i>Toàn màn</button>
+      <button class="dbtn" id="menuBtn"><i data-i="gear"></i>Cài đặt</button>
+    </div>
+  </div>
+
+  <div id="panel" class="sheet hide">
+    <div class="grab"></div>
+    <div class="sh"><h3>Xem lại</h3><button class="round" id="closePanel"><i data-i="close"></i></button></div>
+    <div class="lbl">Ngày</div><div class="chips" id="days"></div>
+    <div class="lbl">Giờ</div><div class="chips" id="hours"></div>
+    <div class="lbl">Phút</div><div class="mins" id="mins"></div>
+    <div class="mut" id="pmsg" style="margin-top:10px;font-size:14px"></div>
+    <div class="legend"><span><i style="background:rgba(79,140,255,.5)"></i>Có ghi</span><span><i style="background:rgba(255,77,94,.6)"></i>Có chuyển động</span></div>
+  </div>
+
+  <div id="menu" class="sheet hide">
+    <div class="grab"></div>
+    <div class="sh"><h3>Cài đặt</h3><button class="round" id="closeMenu"><i data-i="close"></i></button></div>
+    <div class="switch"><span>Kêu bíp khi có chuyển động</span><input type="checkbox" id="beep"></div>
+    <div class="switch"><span>Rung khi có chuyển động (Android)</span><input type="checkbox" id="vibrate"></div>
+    <div class="lbl">Nhật ký</div>
+    <div class="log" id="viewLog" style="margin-top:0"></div>
+  </div>
+
+  <div id="toast" class="glass"></div>
+</section>
+
+<script>
+/* Khoá riêng của hệ thống camera này: các máy dùng chung file sẽ tự tìm thấy nhau */
+const KEY = "ed6d6b14f29263a953c1c9ee";
+const CAM_ID = `khcam-v3-${KEY}-1`;
+
+/* ---------- Icon ---------- */
+const ICONS = {
+  video: '<rect x="2" y="6" width="14" height="12" rx="2.5"/><path d="M22 8l-6 4 6 4z"/>',
+  phone: '<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  history: '<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
+  fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  max: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  play: '<path d="M7 4v16l13-8z" fill="currentColor" stroke="none"/>',
+  pause: '<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/>',
+  prev: '<path d="M19 20L9 12l10-8z" fill="currentColor"/><path d="M5 19V5"/>',
+  next: '<path d="M5 4l10 8-10 8z" fill="currentColor"/><path d="M19 5v14"/>',
+  download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+  close: '<path d="M18 6L6 18M6 6l12 12"/>',
+  off: '<path d="M2 2l20 20"/><path d="M16 16v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m4 0h4a2 2 0 0 1 2 2v3.3l6-3.8v11"/>'
+};
+const icon = n => `<svg class="i" viewBox="0 0 24 24">${ICONS[n] || ""}</svg>`;
+document.querySelectorAll("i[data-i]").forEach(el => el.outerHTML = icon(el.dataset.i));
+
+/* ---------- Tiện ích ---------- */
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const pad2 = n => String(n).padStart(2, "0");
+const fmtTime = t => { const d = new Date(t); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+const fmtDate = t => { const d = new Date(t); return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`; };
+const log = (el, msg) => $(el).insertAdjacentHTML("afterbegin", `<div>${fmtTime(Date.now())}  ${msg}</div>`);
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} }, del(k) { try { localStorage.removeItem(k); } catch {} } };
+const show = id => ["home", "cam", "view"].forEach(s => $(s).classList.toggle("hide", s !== id));
+function changeRole() { store.del("cam_role"); location.href = location.pathname; }
+function ticker(ms, fn) { const w = new Worker(URL.createObjectURL(new Blob([`setInterval(()=>postMessage(0),${ms})`], { type: "text/javascript" }))); w.onmessage = fn; return w; }
+
+/* ---------- IndexedDB: các đoạn ghi 1 phút ---------- */
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("khcam-1", 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore("meta", { keyPath: "start" }); r.result.createObjectStore("blob"); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+function tx(db, stores, mode, fn) {
+  return new Promise((res, rej) => {
+    const t = db.transaction(stores, mode), out = fn(t);
+    t.oncomplete = () => res(out instanceof IDBRequest ? out.result : out);
+    t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  });
+}
+
+/* ======================================================================
+   MÁY CAMERA
+   ====================================================================== */
+async function startCamera() {
+  show("cam");
+  const db = await openDB();
+  try { await navigator.storage?.persist?.(); } catch {}
+  const src = $("src"), out = $("out"), ctx = out.getContext("2d");
+  const setState = (txt, cls) => { $("camState").textContent = txt; $("camDot").className = "dot " + (cls || ""); };
+
+  $("keepSel").value = store.get("cam_keep") || "24";
+  $("keepSel").onchange = () => { store.set("cam_keep", $("keepSel").value); prune(); };
+  let sens = +(store.get("cam_sens") || 3);
+  const paintSens = () => document.querySelectorAll("#sens button").forEach(b => b.classList.toggle("on", +b.dataset.s === sens));
+  document.querySelectorAll("#sens button").forEach(b => b.onclick = () => { sens = +b.dataset.s; store.set("cam_sens", sens); paintSens(); });
+  paintSens();
+  $("boxOn").checked = store.get("cam_box") !== "0";
+  $("boxOn").onchange = () => store.set("cam_box", $("boxOn").checked ? "1" : "0");
+
+  let stream, motion = false, hotBox = null;
+  const getStream = id => navigator.mediaDevices.getUserMedia({ audio: false, video: {
+    width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 20 }, ...(id ? { deviceId: { exact: id } } : {}) } });
+  try { stream = await getStream(store.get("cam_dev_1")); }
+  catch { try { stream = await getStream(); } catch (e) {
+    setState("Không mở được webcam", "off");
+    log("camLog", "Lỗi webcam: " + e.message + ". Cho phép quyền camera và tắt app Camera/Zoom/Teams đang dùng webcam."); return; } }
+  src.srcObject = stream; src.play().catch(() => {});
+
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+  $("camSel").innerHTML = devs.map((d, i) => `<option value="${d.deviceId}">${d.label || "Webcam " + (i + 1)}</option>`).join("");
+  const curDev = stream.getVideoTracks()[0].getSettings().deviceId; if (curDev) $("camSel").value = curDev;
+  $("camSel").onchange = async () => {
+    try { const ns = await getStream($("camSel").value); stream.getTracks().forEach(t => t.stop()); stream = ns; src.srcObject = ns; src.play().catch(() => {}); store.set("cam_dev_1", $("camSel").value); bg = null; }
+    catch (e) { log("camLog", "Webcam này đang bận: " + e.message); }
+  };
+
+  const lock = async () => { try { await navigator.wakeLock?.request("screen"); } catch {} };
+  lock(); document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && lock());
+
+  /* Vẽ hình + ngày giờ lên canvas: luồng phát và bản ghi đều lấy từ đây */
+  const outStream = out.captureStream(15);
+  let ready = false, curMinute = -1;
+  ticker(66, () => {
+    if (src.readyState < 2) return;
+    const w = Math.min(src.videoWidth, 1280), h = Math.round(w * src.videoHeight / src.videoWidth);
+    if (out.width !== w || out.height !== h) { out.width = w; out.height = h; }
+    ctx.drawImage(src, 0, 0, w, h);
+    if (motion && hotBox && $("boxOn").checked) {
+      const sx = w / MW, sy = h / MH;
+      ctx.strokeStyle = "#ff4d5e"; ctx.lineWidth = Math.max(2, w / 400);
+      ctx.strokeRect(hotBox[0] * sx, hotBox[1] * sy, (hotBox[2] - hotBox[0]) * sx, (hotBox[3] - hotBox[1]) * sy);
+    }
+    const fs = Math.max(14, Math.round(h / 26)), text = `${fmtDate(Date.now())}  ${fmtTime(Date.now())}`;
+    ctx.font = `600 ${fs}px "JetBrains Mono",ui-monospace,Consolas,monospace`;
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.fillRect(fs * .5, fs * .5, tw + fs, fs * 1.6);
+    ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(text, fs, fs * 1.3);
+    if (motion) { ctx.fillStyle = "#ff4d5e"; ctx.beginPath(); ctx.arc(w - fs * 1.2, fs * 1.3, fs * .4, 0, 7); ctx.fill(); }
+    ready = true;
+    const m = Math.floor(Date.now() / 60000);
+    if (m !== curMinute) { curMinute = m; rotate(); }
+  });
+
+  /* Ghi liên tục, mỗi phút một đoạn */
+  const recType = ["video/mp4;codecs=avc1.42E01F", "video/mp4", "video/webm;codecs=vp8", "video/webm"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+  let rec = null;
+  function rotate() {
+    if (!ready) return;
+    if (rec && rec.state !== "inactive") rec.stop();
+    const chunks = [], start = Date.now(), r = new MediaRecorder(outStream, { ...(recType ? { mimeType: recType } : {}), videoBitsPerSecond: 700000 });
+    r._motion = motion;
+    r.ondataavailable = e => e.data.size && chunks.push(e.data);
+    r.onstop = async () => {
+      const type = r.mimeType || recType || "video/webm", blob = new Blob(chunks, { type });
+      if (blob.size < 2000) return;
+      try { await tx(db, ["meta", "blob"], "readwrite", t => { t.objectStore("meta").put({ start, end: Date.now(), size: blob.size, motion: r._motion, type }); t.objectStore("blob").put(blob, start); }); }
+      catch (e) { log("camLog", "Không lưu được đoạn ghi: " + e.message); }
+      prune();
+    };
+    r.start(); rec = r;
+    $("recState").textContent = "Đang ghi"; $("recState").className = ""; $("recState").style.color = "var(--bad)";
+  }
+
+  async function prune() {
+    const keep = (+$("keepSel").value || 24) * 3600e3;
+    const keys = await tx(db, ["meta"], "readonly", t => t.objectStore("meta").getAllKeys());
+    let del = keys.filter(k => k < Date.now() - keep);
+    try { const e = await navigator.storage.estimate(); if (e.usage / e.quota > 0.85) del = del.concat(keys.slice(0, Math.ceil(keys.length * 0.1))); } catch {}
+    if (del.length) await tx(db, ["meta", "blob"], "readwrite", t => del.forEach(k => { t.objectStore("meta").delete(k); t.objectStore("blob").delete(k); }));
+    const mins = keys.length - new Set(del).size;
+    $("storeInfo").textContent = mins >= 60 ? `${Math.floor(mins / 60)} giờ ${mins % 60} phút` : `${mins} phút`;
+  }
+  prune();
+
+  /* Kết nối với người xem */
+  const conns = new Map();
+  const updateViewers = () => $("viewers").textContent = conns.size;
+  async function sendList(data) {
+    const metas = await tx(db, ["meta"], "readonly", t => t.objectStore("meta").getAll());
+    data.send({ t: "list", segs: metas.map(m => [m.start, m.end, m.motion ? 1 : 0]) });
+  }
+  async function sendSeg(data, start) {
+    const [meta, blob] = await Promise.all([
+      tx(db, ["meta"], "readonly", t => t.objectStore("meta").get(start)),
+      tx(db, ["blob"], "readonly", t => t.objectStore("blob").get(start))]);
+    if (!meta || !blob) { data.send({ t: "miss", start }); return; }
+    const buf = await blob.arrayBuffer(), CH = 16000, n = Math.ceil(buf.byteLength / CH);
+    for (let i = 0; i < n; i++) {
+      while (data.dataChannel && data.dataChannel.bufferedAmount > 1e6) await sleep(25);
+      if (!data.open) return;
+      data.send({ t: "chunk", start, i, n, type: meta.type, buf: buf.slice(i * CH, (i + 1) * CH) });
+    }
+  }
+  let peer;
+  function openPeer() {
+    peer = new Peer(CAM_ID);
+    peer.on("open", () => { setState("Đang phát", ""); log("camLog", "Đã lên mạng, sẵn sàng cho người xem"); });
+    peer.on("connection", data => {
+      data.on("open", () => { conns.set(data.peer, { data, call: peer.call(data.peer, outStream) }); updateViewers(); log("camLog", "Có người xem kết nối"); });
+      data.on("data", m => { if (m?.t === "list") sendList(data); else if (m?.t === "get") sendSeg(data, m.start); });
+      data.on("close", () => { conns.get(data.peer)?.call?.close(); conns.delete(data.peer); updateViewers(); });
+    });
+    peer.on("disconnected", () => { setState("Mất mạng, đang thử lại…", "off"); setTimeout(() => !peer.destroyed && peer.reconnect(), 2000); });
+    peer.on("error", e => {
+      log("camLog", "Lỗi: " + e.type);
+      if (e.type === "unavailable-id") { setState("Camera đang mở ở tab/máy khác", "off"); setTimeout(() => { peer.destroy(); openPeer(); }, 5000); }
+      if (e.type === "network" || e.type === "server-error") setTimeout(() => { peer.destroy(); openPeer(); }, 3000);
+    });
+  }
+  openPeer();
+
+  /* ---------- Phát hiện chuyển động (chia khung thành 10×10 ô) ----------
+     - So với nền thích nghi, nên bắt được cả chuyển động chậm
+     - Bù độ sáng toàn khung, nên đèn bật/tắt hay webcam tự chỉnh sáng ít báo nhầm
+     - Chỉ cần 1 ô thay đổi là báo, nên bắt được vật nhỏ ở xa */
+  const MW = 160, MH = 120, GX = 10, GY = 10, BW = MW / GX, BH = MH / GY;
+  const SENS = { 1: { thr: 30, frac: .22 }, 2: { thr: 22, frac: .12 }, 3: { thr: 15, frac: .06 }, 4: { thr: 10, frac: .025 } };
+  const mc = document.createElement("canvas"); mc.width = MW; mc.height = MH;
+  const mctx = mc.getContext("2d", { willReadFrequently: true });
+  let bg = null, lastMove = 0;
+  const g = new Float32Array(MW * MH), blocks = new Uint16Array(GX * GY);
+  ticker(200, () => {
+    let level = 0;
+    if ($("motionOn").checked && src.readyState >= 2) {
+      mctx.drawImage(src, 0, 0, MW, MH);
+      const d = mctx.getImageData(0, 0, MW, MH).data;
+      let sg = 0, sb = 0;
+      for (let i = 0; i < g.length; i++) { g[i] = d[i * 4] * .299 + d[i * 4 + 1] * .587 + d[i * 4 + 2] * .114; sg += g[i]; }
+      if (!bg) bg = g.slice();
+      for (let i = 0; i < bg.length; i++) sb += bg[i];
+      const off = (sg - sb) / g.length, { thr, frac } = SENS[sens];
+      blocks.fill(0);
+      for (let y = 0; y < MH; y++) {
+        const row = y * MW, by = ((y / BH) | 0) * GX;
+        for (let x = 0; x < MW; x++) { const i = row + x; if (Math.abs(g[i] - bg[i] - off) > thr) blocks[by + ((x / BW) | 0)]++; }
+      }
+      const area = BW * BH; let hot = 0, maxF = 0, x0 = 99, y0 = 99, x1 = -1, y1 = -1;
+      for (let b = 0; b < blocks.length; b++) {
+        const f = blocks[b] / area; if (f > maxF) maxF = f;
+        if (f > frac) { hot++; const bx = b % GX, by = (b / GX) | 0; x0 = Math.min(x0, bx); y0 = Math.min(y0, by); x1 = Math.max(x1, bx); y1 = Math.max(y1, by); }
+      }
+      level = Math.min(1, maxF / frac / 1.5);
+      if (hot > 0 && hot < blocks.length * .9) { lastMove = Date.now(); hotBox = [x0 * BW, y0 * BH, (x1 + 1) * BW, (y1 + 1) * BH]; }
+      for (let i = 0; i < bg.length; i++) bg[i] = bg[i] * .88 + (g[i] - off) * .12;   // nền thích nghi chậm
+    } else { lastMove = 0; bg = null; }
+    $("meter").style.width = Math.round(level * 100) + "%";
+    const now = Date.now() - lastMove < 4000;
+    if (now && rec) rec._motion = true;
+    if (now !== motion) {
+      motion = now; $("preview").classList.toggle("moving", motion);
+      if (motion) log("camLog", "Phát hiện chuyển động"); else hotBox = null;
+    }
+    for (const c of conns.values()) if (c.data.open) c.data.send({ motion });
+  });
+}
+
+/* ======================================================================
+   XEM
+   ====================================================================== */
+function startViewer() {
+  show("view");
+  const view = $("view"), vid = $("v");
+  const cam = { live: false, motion: false, stream: null, data: null, list: [], missing: false, wait: "Đang kết nối…" };
+  let mode = "live", replay = null, peer, audioCtx;
+  const cache = new Map(), pending = new Map();
+  const sheetOpen = () => !$("panel").classList.contains("hide") || !$("menu").classList.contains("hide");
+  const toast = msg => { $("toast").textContent = msg; $("toast").style.opacity = 1; clearTimeout(toast.t); toast.t = setTimeout(() => $("toast").style.opacity = 0, 1800); };
+  $("beep").checked = store.get("cam_beep") === "1"; $("beep").onchange = () => store.set("cam_beep", $("beep").checked ? "1" : "0");
+  $("vibrate").checked = store.get("cam_vib") === "1"; $("vibrate").onchange = () => store.set("cam_vib", $("vibrate").checked ? "1" : "0");
+
+  /* ----- Hiển thị ----- */
+  function render() {
+    $("replayBar").classList.toggle("hide", mode !== "replay");
+    const st = $("status");
+    if (mode === "replay") { st.className = "status glass"; st.innerHTML = `<span class="dot" style="background:var(--warn);box-shadow:none"></span>Đang xem lại`; return; }
+    st.className = "status glass" + (cam.live && cam.motion ? " alert" : "");
+    st.innerHTML = cam.live
+      ? (cam.motion ? `<span class="dot" style="background:#fff;box-shadow:none"></span>Có chuyển động` : `<span class="dot rec"></span>TRỰC TIẾP`)
+      : `<span class="dot off"></span>${cam.missing ? "Camera chưa bật" : cam.wait}`;
+    if (cam.live) $("center").innerHTML = "";
+    else if (cam.missing) {
+      $("center").innerHTML = `<div class="empty glass"><div class="ic">${icon("off")}</div><b>Chưa có máy nào bật camera</b>
+        <p>Mở trang này trên máy có webcam và chọn <b style="display:inline;font-size:inherit">Dùng làm camera</b>. Trang sẽ tự kết nối khi camera lên.</p>
+        <button class="cta" id="startHere">${icon("video")}Bật camera trên máy này</button></div>`;
+      $("startHere").onclick = () => window.open(location.pathname + "#cam", "_blank");
+    } else $("center").innerHTML = `<div class="spinner"></div><div class="loadtxt">${cam.wait}</div>`;
+  }
+  function goLive() {
+    mode = "live"; replay = null;
+    if (vid.src) { URL.revokeObjectURL(vid.src); vid.removeAttribute("src"); }
+    vid.playbackRate = 1; $("speed").textContent = "1×";
+    vid.srcObject = cam.stream; vid.play().catch(() => {});
+    render(); wake();
+  }
+
+  /* ----- Kết nối ----- */
+  function connect() {
+    clearTimeout(cam.retry);
+    const data = peer.connect(CAM_ID, { reliable: true });
+    cam.data = data;
+    data.on("open", () => data.send({ t: "list" }));
+    data.on("data", onData);
+    data.on("close", () => { cam.live = false; cam.wait = "Mất kết nối, đang thử lại…"; render(); cam.retry = setTimeout(connect, 3000); });
+  }
+  function start() {
+    peer = new Peer();
+    peer.on("open", connect);
+    peer.on("call", call => {
+      if (call.peer !== CAM_ID) return;
+      call.answer();
+      call.on("stream", s => { cam.stream = s; cam.live = true; cam.missing = false; if (mode === "live") goLive(); render(); log("viewLog", "Đã lên hình"); });
+      call.on("close", () => { cam.live = false; cam.wait = "Mất hình, đang chờ…"; render(); });
+    });
+    peer.on("error", e => {
+      if (e.type === "peer-unavailable") { if (cam.live) return; cam.missing = true; render(); clearTimeout(cam.retry); cam.retry = setTimeout(connect, 5000); }
+      else { log("viewLog", "Lỗi: " + e.type); if (e.type === "network" || e.type === "server-error") setTimeout(() => { peer.destroy(); start(); }, 3000); }
+    });
+    peer.on("disconnected", () => setTimeout(() => !peer.destroyed && peer.reconnect(), 2000));
+  }
+  start();
+
+  function onData(m) {
+    if (!m) return;
+    if (m.t === "list") { cam.list = m.segs.sort((a, b) => a[0] - b[0]); if (!$("panel").classList.contains("hide")) drawPanel(); return; }
+    if (m.t === "chunk") {
+      const p = pending.get(m.start); if (!p) return;
+      if (!p.parts[m.i]) { p.parts[m.i] = m.buf; p.got++; }
+      if (replay && replay.start === m.start) $("center").innerHTML = `<div class="spinner"></div><div class="loadtxt">Đang tải ${Math.round(p.got / m.n * 100)}%</div>`;
+      if (p.got === m.n) {
+        const b = new Blob(p.parts, { type: m.type }); pending.delete(m.start);
+        cache.set(m.start, b); if (cache.size > 15) cache.delete(cache.keys().next().value);
+        p.resolve(b);
+      }
+      return;
+    }
+    if (m.t === "miss") { const p = pending.get(m.start); if (p) { pending.delete(m.start); p.reject(new Error("Đoạn ghi đã bị xoá")); } return; }
+    if ("motion" in m && !!m.motion !== cam.motion) {
+      cam.motion = !!m.motion; render();
+      if (cam.motion) {
+        log("viewLog", "Phát hiện chuyển động");
+        if ($("beep").checked) { try { audioCtx ??= new AudioContext(); const o = audioCtx.createOscillator(), gn = audioCtx.createGain(); o.frequency.value = 880; gn.gain.value = .15; o.connect(gn).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + .25); } catch {} }
+        if ($("vibrate").checked) try { navigator.vibrate?.([200, 100, 200]); } catch {}
+      }
+    }
+  }
+
+  /* ----- Xem lại ----- */
+  function fetchSeg(start) {
+    if (cache.has(start)) return Promise.resolve(cache.get(start));
+    if (pending.has(start)) return pending.get(start).promise;
+    if (!cam.data || !cam.data.open) return Promise.reject(new Error("Camera chưa kết nối"));
+    const p = { parts: [], got: 0 };
+    p.promise = new Promise((res, rej) => { p.resolve = res; p.reject = rej; setTimeout(() => { if (pending.get(start) === p) { pending.delete(start); rej(new Error("Tải quá lâu, thử lại")); } }, 90000); });
+    pending.set(start, p); cam.data.send({ t: "get", start });
+    return p.promise;
+  }
+  async function playSeg(start) {
+    mode = "replay"; replay = { start };
+    closeSheets(); render();
+    $("rTime").textContent = `${fmtDate(start)}  ${fmtTime(start)}`;
+    $("center").innerHTML = `<div class="spinner"></div><div class="loadtxt">Đang tải…</div>`;
+    vid.srcObject = null;
+    try {
+      const blob = await fetchSeg(start);
+      if (!replay || replay.start !== start) return;
+      if (vid.src) URL.revokeObjectURL(vid.src);
+      vid.src = URL.createObjectURL(blob);
+      vid.playbackRate = parseFloat($("speed").textContent) || 1;
+      await vid.play().catch(() => {});
+      $("center").innerHTML = ""; $("playPause").innerHTML = icon("pause");
+      const nx = neighbor(1); if (nx) fetchSeg(nx[0]).catch(() => {});
+    } catch (e) { $("center").innerHTML = `<div class="loadtxt">${e.message}</div>`; }
+    wake();
+  }
+  function neighbor(dir) {
+    if (!replay) return null;
+    const i = cam.list.findIndex(s => s[0] === replay.start);
+    return cam.list[i + dir] || null;
+  }
+  function step(dir) {
+    const nx = neighbor(dir);
+    if (nx) playSeg(nx[0]);
+    else if (dir > 0) { toast("Hết đoạn ghi, về trực tiếp"); goLive(); }
+    else toast("Đây là đoạn cũ nhất");
+  }
+  vid.addEventListener("loadedmetadata", () => {
+    if (mode !== "replay" || isFinite(vid.duration)) return;
+    vid.currentTime = 1e101;
+    vid.addEventListener("timeupdate", function f() { vid.removeEventListener("timeupdate", f); vid.currentTime = 0; });
+  });
+  vid.addEventListener("ended", () => mode === "replay" && step(1));
+  setInterval(() => {
+    if (mode !== "replay" || !replay) return;
+    const t = replay.start + vid.currentTime * 1000;
+    $("rTime").textContent = `${fmtDate(t)}  ${fmtTime(t)}`;
+    if (isFinite(vid.duration) && document.activeElement !== $("seek")) { $("seek").max = vid.duration; $("seek").value = vid.currentTime; }
+  }, 250);
+  $("seek").oninput = () => { if (isFinite(vid.duration)) vid.currentTime = +$("seek").value; };
+  $("prevSeg").onclick = () => step(-1);
+  $("nextSeg").onclick = () => step(1);
+  $("playPause").onclick = () => { if (vid.paused) { vid.play(); $("playPause").innerHTML = icon("pause"); } else { vid.pause(); $("playPause").innerHTML = icon("play"); } };
+  $("speed").onclick = () => { const s = [1, 2, 4, 8], i = (s.indexOf(vid.playbackRate) + 1) % s.length; vid.playbackRate = s[i]; $("speed").textContent = s[i] + "×"; };
+  $("goLive").onclick = goLive;
+  $("dlSeg").onclick = () => {
+    const b = replay && cache.get(replay.start); if (!b) return;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(b);
+    a.download = `camera-${fmtDate(replay.start).replace(/\//g, "-")}-${fmtTime(replay.start).replace(/:/g, "")}.${b.type.includes("mp4") ? "mp4" : "webm"}`;
+    a.click();
+  };
+
+  /* ----- Bảng chọn giờ ----- */
+  let selDay = null, selHour = null;
+  function openPanel() {
+    $("menu").classList.add("hide"); $("panel").classList.remove("hide");
+    cam.data?.open && cam.data.send({ t: "list" });
+    drawPanel(); wake();
+  }
+  function drawPanel() {
+    const segs = cam.list;
+    $("days").innerHTML = $("hours").innerHTML = $("mins").innerHTML = "";
+    if (!segs.length) { $("pmsg").textContent = cam.data?.open ? "Chưa có đoạn ghi nào. Camera ghi mỗi phút một đoạn." : "Camera chưa kết nối."; return; }
+    $("pmsg").textContent = "";
+    const days = [...new Set(segs.map(s => fmtDate(s[0])))];
+    if (!days.includes(selDay)) selDay = days[days.length - 1];
+    const byHour = {}; segs.filter(s => fmtDate(s[0]) === selDay).forEach(s => (byHour[new Date(s[0]).getHours()] ??= []).push(s));
+    if (!(selHour in byHour)) selHour = Math.max(...Object.keys(byHour).map(Number));
+    const today = fmtDate(Date.now()), yest = fmtDate(Date.now() - 864e5);
+    days.forEach(d => { const b = document.createElement("button"); b.textContent = d === today ? "Hôm nay" : d === yest ? "Hôm qua" : d.slice(0, 5); b.className = d === selDay ? "on" : ""; b.onclick = () => { selDay = d; selHour = null; drawPanel(); }; $("days").appendChild(b); });
+    for (let h = 0; h < 24; h++) {
+      const b = document.createElement("button"), has = byHour[h];
+      b.textContent = pad2(h) + ":00"; b.disabled = !has;
+      b.className = (h === selHour ? "on " : "") + (has && has.some(s => s[2]) ? "mv" : "");
+      b.onclick = () => { selHour = h; drawPanel(); };
+      $("hours").appendChild(b);
+    }
+    const byMin = {}; (byHour[selHour] || []).forEach(s => { byMin[new Date(s[0]).getMinutes()] = s; });
+    for (let m = 0; m < 60; m++) {
+      const b = document.createElement("button"), s = byMin[m];
+      b.textContent = pad2(m);
+      if (s) { b.className = (s[2] ? "mv" : "rec") + (replay && replay.start === s[0] ? " now" : ""); b.title = `${pad2(selHour)}:${pad2(m)}`; b.onclick = () => playSeg(s[0]); }
+      else b.disabled = true;
+      $("mins").appendChild(b);
+    }
+    requestAnimationFrame(() => {
+      $("days").querySelector(".on")?.scrollIntoView({ inline: "center", block: "nearest" });
+      $("hours").querySelector(".on")?.scrollIntoView({ inline: "center", block: "nearest" });
+    });
+  }
+  function closeSheets() { $("panel").classList.add("hide"); $("menu").classList.add("hide"); wake(); }
+  $("openPanel").onclick = openPanel;
+  $("closePanel").onclick = closeSheets;
+  $("menuBtn").onclick = () => { $("panel").classList.add("hide"); $("menu").classList.remove("hide"); wake(); };
+  $("closeMenu").onclick = closeSheets;
+
+  /* ----- Nút & cử chỉ ----- */
+  $("snap").onclick = () => {
+    if (!vid.videoWidth) return;
+    const c = document.createElement("canvas"); c.width = vid.videoWidth; c.height = vid.videoHeight;
+    c.getContext("2d").drawImage(vid, 0, 0);
+    c.toBlob(b => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `camera-${Date.now()}.jpg`; a.click(); }, "image/jpeg", .92);
+    toast("Đã chụp ảnh");
+  };
+  const paintFit = () => $("fit").classList.toggle("on", view.classList.contains("fill"));
+  const toggleFit = () => { view.classList.toggle("fill"); store.set("cam_fill", view.classList.contains("fill") ? "1" : ""); paintFit(); toast(view.classList.contains("fill") ? "Lấp đầy màn hình" : "Vừa khung hình"); };
+  if (store.get("cam_fill")) view.classList.add("fill");
+  paintFit();
+  $("fit").onclick = toggleFit;
+  $("fs").onclick = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (view.requestFullscreen) { await view.requestFullscreen(); try { await screen.orientation.lock("landscape"); } catch {} }
+      else if (vid.webkitEnterFullscreen) vid.webkitEnterFullscreen();
+    } catch {}
+  };
+
+  // Nút tự ẩn sau vài giây; chạm hình để hiện lại, chạm 2 lần để lấp đầy
+  let calmTimer;
+  function wake() {
+    view.classList.remove("calm"); clearTimeout(calmTimer);
+    if (!sheetOpen() && (mode === "live" ? cam.live : !vid.paused)) calmTimer = setTimeout(() => view.classList.add("calm"), 4000);
+  }
+  let lastTap = 0, tapTimer;
+  vid.addEventListener("click", () => {
+    const now = Date.now();
+    if (now - lastTap < 300) { clearTimeout(tapTimer); toggleFit(); lastTap = 0; return; }
+    lastTap = now;
+    tapTimer = setTimeout(() => {
+      if (sheetOpen()) closeSheets();
+      else if (view.classList.contains("calm")) wake(); else { clearTimeout(calmTimer); view.classList.add("calm"); }
+    }, 300);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "f") $("fs").click();
+    else if (e.key === "Escape") closeSheets();
+    else if (e.key === " " && mode === "replay") { e.preventDefault(); $("playPause").click(); }
+  });
+  document.addEventListener("mousemove", wake);
+  document.addEventListener("touchstart", e => { if (e.target !== vid) wake(); }, { passive: true });
+
+  render(); wake();
+}
+
+/* ======================================================================
+   KHỞI ĐỘNG
+   ====================================================================== */
+function begin(role) {
+  if (!window.Peer) { $("homeNote").lastElementChild.textContent = "Không tải được thư viện kết nối. Kiểm tra internet rồi tải lại trang."; show("home"); return; }
+  role === "view" ? startViewer() : startCamera();
+}
+document.querySelectorAll("[data-role]").forEach(b => b.onclick = () => { store.set("cam_role", b.dataset.role); begin(b.dataset.role); });
+const hashRole = location.hash.slice(1);
+const role = ["cam", "view"].includes(hashRole) ? hashRole : ["cam", "view"].includes(store.get("cam_role")) ? store.get("cam_role") : null;
+if (role) begin(role);
+</script>
+</body>
+</html>
