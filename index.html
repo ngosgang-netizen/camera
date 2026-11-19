@@ -191,12 +191,12 @@
       <div class="field"><label>Webcam</label><select id="camSel"></select></div>
       <div class="field"><label>Múi giờ hiển thị trên hình</label>
         <select id="tzSel">
-          <option value="">Theo máy tính</option>
+          <option value="Australia/Melbourne">Úc: Melbourne / Sydney / Canberra</option>
           <option value="Asia/Ho_Chi_Minh">Việt Nam (UTC+7)</option>
-          <option value="Australia/Melbourne">Melbourne / Sydney</option>
-          <option value="Australia/Brisbane">Brisbane</option>
-          <option value="Australia/Adelaide">Adelaide</option>
-          <option value="Australia/Perth">Perth</option>
+          <option value="local">Theo máy tính</option>
+          <option value="Australia/Brisbane">Úc: Brisbane</option>
+          <option value="Australia/Adelaide">Úc: Adelaide</option>
+          <option value="Australia/Perth">Úc: Perth</option>
           <option value="Asia/Tokyo">Nhật / Hàn (UTC+9)</option>
           <option value="Europe/London">London</option>
           <option value="America/Los_Angeles">Los Angeles</option>
@@ -301,7 +301,7 @@ const pad2 = n => String(n).padStart(2, "0");
 /* Giờ: lấy giờ chuẩn từ máy chủ web (sửa khi đồng hồ máy bị lệch) và hiển thị theo múi giờ đã chọn */
 let clockOffset = 0, TZ = "", tzFmt = null;
 const now = () => Date.now() + clockOffset;
-function setTZ(tz) { TZ = tz || ""; try { tzFmt = TZ ? new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }) : null; } catch { TZ = ""; tzFmt = null; } }
+function setTZ(tz) { TZ = tz && tz !== "local" ? tz : ""; try { tzFmt = TZ ? new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }) : null; } catch { TZ = ""; tzFmt = null; } }
 function parts(t) {
   if (!tzFmt) { const d = new Date(t); return { Y: d.getFullYear(), M: d.getMonth() + 1, D: d.getDate(), h: d.getHours(), m: d.getMinutes(), s: d.getSeconds() }; }
   const o = {}; tzFmt.formatToParts(t).forEach(p => o[p.type] = +p.value);
@@ -350,13 +350,14 @@ async function startCamera() {
   const src = $("src"), out = $("out"), ctx = out.getContext("2d");
   const setState = (txt, cls) => { $("camState").textContent = txt; $("camDot").className = "dot " + (cls || ""); };
 
-  setTZ(store.get("cam_tz") || "");
-  $("tzSel").value = TZ;
+  const savedTZ = store.get("cam_tz") || "Australia/Melbourne";   // mặc định giờ Úc
+  setTZ(savedTZ);
+  $("tzSel").value = TZ || "local";
   const showClock = () => {
     const zone = TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "máy tính";
     $("clockInfo").textContent = `Bây giờ: ${fmtTime(now())} ${fmtDate(now())} · ${zone}` + (clockOffset ? ` · đã chỉnh lệch ${Math.round(clockOffset / 1000)} giây theo giờ internet` : "");
   };
-  $("tzSel").onchange = () => { setTZ($("tzSel").value); store.set("cam_tz", TZ); showClock(); conns.forEach(c => c.data.open && sendList(c.data)); };
+  $("tzSel").onchange = () => { setTZ($("tzSel").value); store.set("cam_tz", $("tzSel").value); showClock(); conns.forEach(c => c.data.open && sendList(c.data)); };
   syncClock().then(showClock); setInterval(() => syncClock().then(showClock), 30 * 60e3); setInterval(showClock, 1000);
   $("keepSel").value = store.get("cam_keep") || "24";
   $("keepSel").onchange = () => { store.set("cam_keep", $("keepSel").value); prune(); };
